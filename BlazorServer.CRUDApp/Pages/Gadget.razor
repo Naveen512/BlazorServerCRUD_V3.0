@@ -1,0 +1,170 @@
+@page "/gadget"
+@inject IJSRuntime _jsRuntime
+@inject IGadgetLogic _gadgetLogic
+<div>
+  <button class="btn btn-primary" type="button" @onclick='@(e =>  OpenModal("gadgetModal",0))' >Add Gadget</button>
+</div>
+
+<div>
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>Product Name</th>
+        <th>Brand Name</th>
+        <th>Cost(Rupees)</th>
+        <th>Type</th>
+        <th>Created Date</th>
+        <th>Modified Date</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      @foreach(BlazorServer.CRUDApp.Entities.Gadget item in AllGadgets)
+      {
+          <tr>
+            <td>@item.ProductName</td>
+            <td>@item.Brand</td>
+            <td>@item.Cost</td>
+            <td>@item.Type</td>
+            <td>@item.CreatedDate</td>
+            <td>@item.ModifiedDate</td>
+            <td>
+              <button type="button" class="btn btn-primary" @onclick='@(e =>  OpenModal("gadgetModal",item.Id))'>Edit</button>
+              | <button type="button" class="btn btn-primary" @onclick='@(e => OpenDeleteModal("deleteConfirmation", item.Id))'>Delete</button>
+            </td>
+          </tr>
+      }
+    </tbody>
+  </table>
+</div>
+
+<div>
+  <div class="modal fade" id="gadgetModal" data-backdrop="static" tabindex="-1" role="dialog" aria-labelledby="staticBackdropLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="staticBackdropLabel">Modal title</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form>
+          <input type="hidden" @bind="Model.Id" id="gadgetId">
+          <input type="hidden" @bind="Model.CreatedDate" id="createdDate">
+          <input type="hidden" @bind="Model.ModifiedDate" id="modifiedDate">
+          <div class="form-group">
+            <label for="txtProdcutName">Name</label>
+            <input type="text" class="form-control" id="txtProductName" @bind="Model.ProductName">
+          </div>
+          <div class="form-group">
+            <label for="txtBrand">Brand Name</label>
+            <input type="text" class="form-control" id="txtBrand" @bind="Model.Brand">
+          </div>
+          <div class="form-group">
+            <label for="txtCost">Cost</label>
+            <input type="text" class="form-control" id="txtCost" @bind="Model.Cost">
+          </div>
+          <div class="form-group">
+            <label for="ddlType">Gadget Type</label>
+            <select class="form-control" id="ddlType" @bind="Model.Type">
+              <option value="mobile">Mobile</option>
+              <option value="laptop">Laptop</option>
+              <option value="Computer">Computer</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" >Close</button>
+        <button type="button" class="btn btn-primary" @onclick='(e => SaveGadget("gadgetModal"))'>Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="modal fade" id="deleteConfirmation" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="exampleModalLabel">Are You Sure You Want To Remove This Item?</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" @onclick='@(e => ConfirmDelete("deleteConfirmation"))' >Ok</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+@code
+{
+  public BlazorServer.CRUDApp.Entities.Gadget Model = new BlazorServer.CRUDApp.Entities.Gadget();
+  public IList<BlazorServer.CRUDApp.Entities.Gadget> AllGadgets = 
+    new List<BlazorServer.CRUDApp.Entities.Gadget>();
+
+  public int itemToDelete;    
+
+  protected override void OnInitialized()
+  {
+    GetAllGadgets();
+  }    
+  public async Task OpenModal(string modalId, int itemId)
+  {
+    if(itemId == 0)
+    {
+      Model = new BlazorServer.CRUDApp.Entities.Gadget();
+    }
+    else
+    {
+      Model = AllGadgets.Where(_ => _.Id == itemId).FirstOrDefault();
+    }
+    await _jsRuntime.InvokeVoidAsync("global.openModal", modalId);
+  }
+  public async Task SaveGadget(string modalId)
+  {
+     if(Model.Id == 0)
+     {
+       // id zero represents new item
+       Model.CreatedDate = DateTime.Now;
+       var newGadget = _gadgetLogic.AddGadget(Model);
+       AllGadgets.Add(newGadget);
+     }
+     else
+     {
+       Model.ModifiedDate = DateTime.Now;
+       var gadgetToUpdate = _gadgetLogic.UpdateGadget(Model);
+       AllGadgets = AllGadgets.Where(_ => _.Id != Model.Id).ToList();
+       AllGadgets.Add(gadgetToUpdate);
+     }
+     await _jsRuntime.InvokeAsync<object>("global.closeModal", modalId);
+  }
+
+  public async Task CloseModal(string modalId)
+  {
+    await _jsRuntime.InvokeAsync<object>("global.closeModal", modalId);
+  }
+
+  public void GetAllGadgets()
+  {
+    AllGadgets = _gadgetLogic.GetAll();
+  }
+
+  public async Task OpenDeleteModal(string modalId, int itemId)
+  {
+     itemToDelete = itemId;
+     await _jsRuntime.InvokeVoidAsync("global.openModal", modalId);
+  }
+  public async Task ConfirmDelete(string modalId)
+  {
+    var itemTodelete = AllGadgets.Where (_=> _.Id == itemToDelete).FirstOrDefault();
+    _gadgetLogic.Delete(itemTodelete);
+    AllGadgets.Remove(itemTodelete);
+    await _jsRuntime.InvokeAsync<object>("global.closeModal", modalId);
+  }
+}
